@@ -1,0 +1,287 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "OSMonitoringPayload",
+  "description": "Esquema y muestra documentada del payload JSON transmitido por WebSocket cada 500 ms por el Dashboard de Monitoreo de Sistema Operativo Nativo v2.0.",
+  "type": "object",
+  "required": [
+    "timestamp",
+    "cpu",
+    "ram",
+    "swap",
+    "storage",
+    "network"
+  ],
+  "properties": {
+    "timestamp": {
+      "type": "number",
+      "description": "Marca de tiempo Unix de alta precisión (segundos)."
+    },
+    "cpu": {
+      "type": "object",
+      "required": [
+        "usage_percent",
+        "status",
+        "frequency_current_ghz",
+        "frequency_max_ghz",
+        "temperature_c",
+        "temperature_status",
+        "core_count",
+        "cores"
+      ],
+      "properties": {
+        "usage_percent": {
+          "type": "number",
+          "description": "Porcentaje de uso global del CPU (0.0 a 100.0, redondeado a 1 decimal)."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["ok", "warning", "critical"],
+          "description": "Estado de alerta según regla: < 70% ('ok'), 70-90% ('warning'), > 90% ('critical')."
+        },
+        "frequency_current_ghz": {
+          "type": ["number", "null"],
+          "description": "Frecuencia de reloj actual en GHz (redondeado a 1-2 decimales). Retorna null en VMs o plataformas sin soporte de gobernador."
+        },
+        "frequency_max_ghz": {
+          "type": ["number", "null"],
+          "description": "Frecuencia máxima del procesador en GHz. Retorna null si no se detecta límite superior."
+        },
+        "temperature_c": {
+          "type": ["number", "null"],
+          "description": "Temperatura térmica del paquete en °C. En Windows nativo o entornos sin sensores expuestos retorna null."
+        },
+        "temperature_status": {
+          "type": ["string", "null"],
+          "enum": ["ok", "warning", "critical", null],
+          "description": "Estado térmico: < 70°C ('ok'), 70-80°C ('warning'), > 80°C ('critical'). Si temperature_c es null, este campo es null."
+        },
+        "core_count": {
+          "type": "integer",
+          "description": "Número total de núcleos o hilos lógicos detectados."
+        },
+        "cores": {
+          "type": "array",
+          "items": { "type": "number" },
+          "description": "Arreglo de porcentajes de uso por hilo/núcleo lógico individual."
+        }
+      }
+    },
+    "ram": {
+      "type": "object",
+      "required": ["used_gb", "total_gb", "percent", "status"],
+      "properties": {
+        "used_gb": {
+          "type": "number",
+          "description": "Memoria RAM física en uso en Gigabytes (redondeado a 1 decimal)."
+        },
+        "total_gb": {
+          "type": "number",
+          "description": "Memoria RAM física total disponible en Gigabytes."
+        },
+        "percent": {
+          "type": "number",
+          "description": "Porcentaje de ocupación de RAM física."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["ok", "warning", "critical"],
+          "description": "Estado de alerta según regla: < 70% ('ok'), 70-90% ('warning'), > 90% ('critical')."
+        }
+      }
+    },
+    "swap": {
+      "type": "object",
+      "required": ["used_gb", "total_gb", "percent", "status"],
+      "properties": {
+        "used_gb": {
+          "type": "number",
+          "description": "Memoria Swap / Paginación en uso en Gigabytes."
+        },
+        "total_gb": {
+          "type": "number",
+          "description": "Memoria Swap / Paginación total en Gigabytes."
+        },
+        "percent": {
+          "type": "number",
+          "description": "Porcentaje de Swap en uso."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["ok", "warning", "critical"],
+          "description": "Estado de alerta según regla: < 30% ('ok'), 30-50% ('warning'), > 50% ('critical')."
+        }
+      }
+    },
+    "storage": {
+      "type": "object",
+      "required": ["io", "partitions"],
+      "properties": {
+        "io": {
+          "type": "object",
+          "required": [
+            "read_mb_s",
+            "write_mb_s",
+            "active_time_percent",
+            "active_time_status"
+          ],
+          "properties": {
+            "read_mb_s": {
+              "type": "number",
+              "description": "Tasa de transferencia de lectura en MB/s."
+            },
+            "write_mb_s": {
+              "type": "number",
+              "description": "Tasa de transferencia de escritura en MB/s."
+            },
+            "active_time_percent": {
+              "type": "number",
+              "description": "Porcentaje de tiempo en que el disco procesa peticiones de I/O."
+            },
+            "active_time_status": {
+              "type": "string",
+              "enum": ["ok", "warning", "critical"],
+              "description": "Estado de actividad de disco: < 60% ('ok'), 60-85% ('warning'), > 85% ('critical')."
+            }
+          }
+        },
+        "partitions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "device",
+              "mountpoint",
+              "fstype",
+              "total_gb",
+              "used_gb",
+              "free_gb",
+              "percent",
+              "status"
+            ],
+            "properties": {
+              "device": { "type": "string" },
+              "mountpoint": { "type": "string" },
+              "fstype": { "type": "string" },
+              "total_gb": { "type": "number" },
+              "used_gb": { "type": "number" },
+              "free_gb": { "type": "number" },
+              "percent": { "type": "number" },
+              "status": {
+                "type": "string",
+                "enum": ["ok", "warning", "critical"],
+                "description": "Estado por partición: < 80% ('ok'), 80-95% ('warning'), > 95% ('critical')."
+              }
+            }
+          }
+        }
+      }
+    },
+    "network": {
+      "type": "object",
+      "required": [
+        "download_mb_s",
+        "upload_mb_s",
+        "download_kb_s",
+        "upload_kb_s",
+        "packet_drop_percent",
+        "packet_drop_status",
+        "errors_count",
+        "active_interfaces"
+      ],
+      "properties": {
+        "download_mb_s": {
+          "type": "number",
+          "description": "Ancho de banda agregado de bajada en MB/s."
+        },
+        "upload_mb_s": {
+          "type": "number",
+          "description": "Ancho de banda agregado de subida en MB/s."
+        },
+        "download_kb_s": {
+          "type": "number",
+          "description": "Ancho de banda de bajada en KB/s."
+        },
+        "upload_kb_s": {
+          "type": "number",
+          "description": "Ancho de banda de subida en KB/s."
+        },
+        "packet_drop_percent": {
+          "type": "number",
+          "description": "Porcentaje de paquetes perdidos en el intervalo."
+        },
+        "packet_drop_status": {
+          "type": "string",
+          "enum": ["ok", "warning", "critical"],
+          "description": "Estado de paquetes perdidos: 0% ('ok'), 0.1-5% ('warning'), > 5% ('critical')."
+        },
+        "errors_count": {
+          "type": "integer",
+          "description": "Total de errores de transmisión y recepción en el intervalo."
+        },
+        "active_interfaces": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Lista consolidada de interfaces de red físicas activas medidas."
+        }
+      }
+    }
+  },
+  "example": {
+    "timestamp": 1725580000.5,
+    "cpu": {
+      "usage_percent": 24.3,
+      "status": "ok",
+      "frequency_current_ghz": 2.8,
+      "frequency_max_ghz": 2.8,
+      "temperature_c": null,
+      "temperature_status": null,
+      "core_count": 8,
+      "cores": [25.0, 18.2, 33.1, 12.0, 50.4, 8.1, 19.5, 28.0]
+    },
+    "ram": {
+      "used_gb": 6.8,
+      "total_gb": 16.0,
+      "percent": 42.5,
+      "status": "ok"
+    },
+    "swap": {
+      "used_gb": 0.4,
+      "total_gb": 8.0,
+      "percent": 5.0,
+      "status": "ok"
+    },
+    "storage": {
+      "io": {
+        "read_mb_s": 12.4,
+        "write_mb_s": 3.8,
+        "active_time_percent": 14.2,
+        "active_time_status": "ok"
+      },
+      "partitions": [
+        {
+          "device": "C:\\",
+          "mountpoint": "C:\\",
+          "fstype": "NTFS",
+          "total_gb": 476.0,
+          "used_gb": 138.2,
+          "free_gb": 337.8,
+          "percent": 29.0,
+          "status": "ok"
+        }
+      ]
+    },
+    "network": {
+      "download_mb_s": 1.4,
+      "upload_mb_s": 0.2,
+      "download_kb_s": 1433.6,
+      "upload_kb_s": 204.8,
+      "packet_drop_percent": 0.0,
+      "packet_drop_status": "ok",
+      "errors_count": 0,
+      "active_interfaces": [
+        "Ethernet",
+        "Wi-Fi 2"
+      ]
+    }
+  }
+}
