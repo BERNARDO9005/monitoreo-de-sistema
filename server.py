@@ -486,6 +486,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Servir archivos estáticos del frontend React (si fueron compilados con Vite)
+if DIST_ASSETS.is_dir():
+    app.mount("/assets", StaticFiles(directory=str(DIST_ASSETS)), name="assets")
+
 
 @app.get("/health")
 async def health_check() -> JSONResponse:
@@ -523,16 +527,9 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
 
 
 # =====================================================================
-# CLIENTE WEB INTEGRADO (VISTA PREVIA INMEDIATA EN NAVEGADOR)
+# PLANTILLA HTML EMBEBIDA (CLIENTE LIGERO STANDALONE)
 # =====================================================================
-@app.get("/", response_class=HTMLResponse)
-async def serve_embedded_dashboard() -> str:
-    """
-    Entrega un dashboard interactivo de alta fidelidad directamente desde el servidor.
-    Permite visualizar el sistema de inmediato abriendo http://localhost:8000
-    sin necesidad de compilar el frontend previamente.
-    """
-    return """<!DOCTYPE html>
+EMBEDDED_HTML_DASHBOARD = """<!DOCTYPE html>
 <html lang="es" class="dark">
 <head>
   <meta charset="UTF-8" />
@@ -980,9 +977,109 @@ async def serve_embedded_dashboard() -> str:
 
 
 # =====================================================================
-# PUNTO DE ENTRADA DIRECTO
+# RUTAS DE INTERFAZ WEB / DASHBOARD
 # =====================================================================
-if __name__ == "__main__":
+@app.get("/", response_model=None)
+async def serve_root():
+    """
+    Sirve el frontend compilado en React (dist/index.html) si existe.
+    Si no está compilado, conmuta automáticamente al dashboard HTML nativo embebido.
+    """
+    if DIST_INDEX.is_file():
+        return FileResponse(str(DIST_INDEX))
+    return HTMLResponse(content=EMBEDDED_HTML_DASHBOARD)
+
+
+@app.get("/embedded", response_class=HTMLResponse)
+async def serve_embedded() -> str:
+    """
+    Permite acceder en cualquier momento a la versión ligera del dashboard embebido,
+    sin dependencias de Node.js o React.
+    """
+    return EMBEDDED_HTML_DASHBOARD
+
+
+# =====================================================================
+# PUNTO DE ENTRADA NATIVO / ESCRITORIO
+# =====================================================================
+def run_desktop_app(host: str = "127.0.0.1", port: int = 8000) -> None:
+    """
+    Ejecuta el servidor FastAPI en segundo plano y abre una ventana nativa
+    de escritorio en Windows mediante pywebview (motor Edge WebView2).
+    """
+    import threading
+    import urllib.request
     import uvicorn
-    logger.info("Iniciando servidor Uvicorn en http://0.0.0.0:8000")
-    uvicorn.run("server:app", host="0.0.0.0", port=8000, reload=False, access_log=False)
+
+    try:
+        import webview
+    except ImportError:
+        logger.warning("pywebview no está disponible. Ejecutando únicamente en modo servidor web...")
+        uvicorn.run("server:app", host=host, port=port, reload=False, access_log=False)
+        return
+
+    # Iniciar Uvicorn en un hilo daemon
+    config = uvicorn.Config("server:app", host=host, port=port, reload=False, access_log=False, log_level="warning")
+    server = uvicorn.Server(config)
+    server_thread = threading.Thread(target=server.run, daemon=True)
+    server_thread.start()
+
+    logger.info("Esperando inicio del servidor de telemetría...")
+    health_url = f"http://{host}:{port}/health"
+    ready = False
+    for _ in range(50):
+        try:
+            with urllib.request.urlopen(health_url, timeout=0.5) as resp:
+                if resp.status == 200:
+                    ready = True
+                    break
+        except Exception:
+            time.sleep(0.1)
+
+    if not ready:
+        logger.warning("El servidor demoró en responder; abriendo ventana de todos modos.")
+
+    app_url = f"http://{host}:{port}"
+    logger.info("Abriendo ventana nativa de escritorio en %s", app_url)
+
+    # Crear ventana nativa de Windows con tamaño ergonómico y estilo Dark Mode
+    window = webview.create_window(
+        title="Dashboard de Monitoreo de Sistema Operativo Nativo v2.0",
+        url=app_url,
+        width=1280,
+        height=850,
+        min_size=(960, 600),
+        background_color="#0f172a"
+    )
+
+    def on_closed():
+        logger.info("Ventana cerrada por el usuario. Deteniendo servidor...")
+        server.should_exit = True
+
+    window.events.closed += on_closed
+
+    try:
+        webview.start()
+    except Exception as exc:
+        logger.error("Error al iniciar ventana con pywebview: %s", exc)
+    finally:
+        server.should_exit = True
+        server_thread.join(timeout=2.0)
+        logger.info("Aplicación nativa finalizada correctamente.")
+
+
+if __name__ == "__main__":
+    import argparse
+    import uvicorn
+
+    parser = argparse.ArgumentParser(description="Dashboard de Monitoreo de Sistema Operativo Nativo v2.0")
+    parser.add_argument("--server-only", "--headless", action="store_true", help="Iniciar solo el servidor web sin ventana de escritorio nativa")
+    parser.add_argument("--host", type=str, default="127.0.0.1", help="Dirección host (por defecto: 127.0.0.1)")
+    parser.add_argument("--port", type=int, default=8000, help="Puerto del servidor (por defecto: 8000)")
+    args = parser.parse_args()
+
+    if args.server_only:
+        logger.info("Iniciando servidor Uvicorn (modo headless) en http://%s:%d", args.host, args.port)
+        uvicorn.run("server:app", host=args.host, port=args.port, reload=False, access_log=False)
+    else:
+        run_desktop_app(host=args.host, port=args.port)
