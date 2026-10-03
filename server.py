@@ -12,12 +12,20 @@ import logging
 import socket
 import time
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 import psutil
+
+# Rutas estáticas para distribución compilada (React/Vite)
+BASE_DIR = Path(__file__).resolve().parent
+DIST_DIR = BASE_DIR / "dist"
+DIST_INDEX = DIST_DIR / "index.html"
+DIST_ASSETS = DIST_DIR / "assets"
 
 # Configuración de logging para producción
 logging.basicConfig(
