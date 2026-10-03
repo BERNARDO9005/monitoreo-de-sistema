@@ -83,33 +83,43 @@ python -m venv venv
 python -m pip install -r requirements.txt
 ```
 
-### Paso 3: Iniciar el Servidor de Telemetría (Backend)
+### Paso 3: Iniciar la Aplicación Nativa de Escritorio
+Puedes iniciar la aplicación de dos formas muy sencillas:
+
+#### Opción A: Mediante doble clic en Windows
+* Haz doble clic sobre [iniciar_dashboard.bat](file:///C:/proyecto1/iniciar_dashboard.bat) (con consola informativa) o sobre [iniciar_dashboard_silencioso.vbs](file:///C:/proyecto1/iniciar_dashboard_silencioso.vbs) (directo sin ventana de consola).
+
+#### Opción B: Mediante PowerShell o Terminal
 ```powershell
 python server.py
 ```
-*El servidor arrancará en `http://localhost:8000` con difusión WebSocket en `ws://localhost:8000/ws`.*
+*Esto arrancará automáticamente el backend y abrirá una **ventana de escritorio nativa de Windows** (Edge WebView2) con la interfaz React completa, gráficos en tiempo real y aceleración por hardware.*
 
-> **💡 Modo Directo / Sin Node.js:**
-> Abre inmediatamente en tu navegador favorito [http://localhost:8000](http://localhost:8000). El backend incluye un cliente HTML5/Tailwind nativo embebido que se conecta en tiempo real sin requerir `npm`.
+> **💡 Modo Servidor Únicamente (Headless / Sin ventana gráfica):**
+> Si prefieres ejecutar solo el servidor web en segundo plano para acceder desde navegadores o remotamente:
+> ```powershell
+> python server.py --server-only
+> ```
+> Opcionalmente puedes definir puerto y host personalizados: `python server.py --server-only --port 8080 --host 0.0.0.0`.
 
 ---
 
-### Paso 4: Configuración y Ejecución del Frontend React (Vite)
-En una segunda terminal:
+### Paso 4: Entorno de Desarrollo Frontend React (Opcional para desarrolladores)
+Si deseas modificar los componentes de React o estilos en vivo con Hot Module Replacement (HMR):
 ```powershell
-# Instalar dependencias de JavaScript
-npm install
-
-# Iniciar servidor de desarrollo con Hot Module Replacement (HMR)
+# Iniciar servidor de desarrollo Vite
 npm run dev
+
+# Para compilar una nueva versión de producción en dist/
+npm run build
 ```
-*Abre tu navegador en [http://localhost:5173](http://localhost:5173) para ver el dashboard con widgets gráficos Recharts de 60 muestras de búfer fijo.*
 
 ---
 
 ## 📡 Endpoints del Backend
 
-* `GET /`: Dashboard nativo embebido de vista previa inmediata.
+* `GET /`: Dashboard principal (React compilado de alta fidelidad con Recharts).
+* `GET /embedded`: Dashboard ligero embebido standalone (HTML5 puro sin dependencias).
 * `GET /health`: Comprobación de estado y conteo de clientes activos.
 * `GET /metrics/current`: Instantánea REST de todas las métricas en JSON.
 * `WS /ws`: Canal WebSocket bidireccional con difusión periódica de 500 ms.
