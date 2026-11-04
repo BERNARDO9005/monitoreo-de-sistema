@@ -21,7 +21,16 @@ import {
   ArrowUp,
   Clock,
   ShieldCheck,
-  Radio
+  Radio,
+  Search,
+  Flame,
+  Trash2,
+  XCircle,
+  CheckCircle2,
+  AlertOctagon,
+  Terminal,
+  Layers,
+  X
 } from 'lucide-react';
 import { useWebSocket } from '../hooks/useWebSocket';
 
