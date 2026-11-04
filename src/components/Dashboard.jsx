@@ -165,6 +165,45 @@ export function Dashboard() {
   const diskActiveStyles = getStatusStyles(io.active_time_status);
   const packetDropStyles = getStatusStyles(network.packet_drop_status);
 
+  // Procesos en tiempo real
+  const processes = data?.processes || { total_count: 0, top_cpu: [], top_memory: [] };
+  const currentProcessList = sortMode === 'cpu' ? (processes.top_cpu || []) : (processes.top_memory || []);
+
+  const filteredProcesses = useMemo(() => {
+    if (!searchQuery.trim()) return currentProcessList;
+    const query = searchQuery.toLowerCase().trim();
+    return currentProcessList.filter(
+      (p) => p.name.toLowerCase().includes(query) || String(p.pid).includes(query)
+    );
+  }, [currentProcessList, searchQuery]);
+
+  const confirmKillProcess = async () => {
+    if (!targetProcToKill) return;
+    setIsKilling(true);
+    try {
+      const response = await fetch(`${apiBaseUrl}/api/processes/${targetProcToKill.pid}/kill`, {
+        method: 'POST'
+      });
+      const result = await response.json();
+      if (response.ok && result.success) {
+        setToast({
+          type: 'success',
+          message: result.message || `Proceso '${targetProcToKill.name}' finalizado correctamente.`
+        });
+        setTargetProcToKill(null);
+      } else {
+        setToast({
+          type: 'error',
+          message: result.error || 'No se pudo finalizar el proceso seleccionado.'
+        });
+      }
+    } catch (err) {
+      setToast({ type: 'error', message: `Error de comunicación con el backend: ${err.message}` });
+    } finally {
+      setIsKilling(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#0f172a] text-slate-100 p-4 md:p-6 lg:p-8 font-sans antialiased selection:bg-indigo-500 selection:text-white">
       
