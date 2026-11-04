@@ -507,6 +507,7 @@ class SystemMetricsCollector:
         ram, swap = self._get_ram_and_swap_metrics()
         storage = self._get_storage_metrics(dt)
         network = self._get_network_metrics(dt)
+        processes = self.process_tracker.get_latest()
 
         return {
             "timestamp": round(now, 1),
@@ -514,7 +515,8 @@ class SystemMetricsCollector:
             "ram": ram,
             "swap": swap,
             "storage": storage,
-            "network": network
+            "network": network,
+            "processes": processes
         }
 
 
@@ -543,14 +545,16 @@ async def telemetry_broadcast_loop() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Inicialización al arrancar
+    # Inicialización concurrente al arrancar
+    proc_task = asyncio.create_task(collector.process_tracker.update_loop())
     broadcast_task = asyncio.create_task(telemetry_broadcast_loop())
     yield
     # Limpieza al detener
     broadcast_task.cancel()
+    proc_task.cancel()
     try:
-        await broadcast_task
-    except asyncio.CancelledError:
+        await asyncio.gather(broadcast_task, proc_task, return_exceptions=True)
+    except Exception:
         pass
 
 
@@ -592,6 +596,73 @@ async def health_check() -> JSONResponse:
 async def get_current_metrics() -> JSONResponse:
     """Devuelve una instantánea única de las métricas en formato JSON."""
     return JSONResponse(collector.collect())
+
+
+@app.get("/api/processes")
+async def get_processes_snapshot() -> JSONResponse:
+    """Devuelve una instantánea de los procesos activos del sistema."""
+    return JSONResponse(collector.process_tracker.get_latest())
+
+
+@app.post("/api/processes/{pid}/kill")
+async def kill_process(pid: int) -> JSONResponse:
+    """
+    Termina un proceso por su PID de forma segura.
+    Protege procesos críticos del sistema de ser eliminados accidentalmente.
+    """
+    if pid <= 4:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "success": False,
+                "error": f"El proceso con PID {pid} es un proceso protegido del sistema operativo y no puede ser finalizado."
+            }
+        )
+
+    try:
+        proc = psutil.Process(pid)
+        proc_name = proc.name()
+
+        # Intentar terminación controlada (SIGTERM / TerminateProcess)
+        proc.terminate()
+        try:
+            await asyncio.to_thread(proc.wait, timeout=1.5)
+        except psutil.TimeoutExpired:
+            # Forzar cierre si no responde en el tiempo límite
+            proc.kill()
+
+        logger.info("Proceso terminado por el usuario: %s (PID: %d)", proc_name, pid)
+        # Disparar actualización inmediata en segundo plano para refrescar la lista
+        asyncio.create_task(asyncio.to_thread(collector.process_tracker._sync_update))
+
+        return JSONResponse({
+            "success": True,
+            "message": f"El proceso '{proc_name}' (PID: {pid}) fue finalizado correctamente."
+        })
+    except psutil.NoSuchProcess:
+        return JSONResponse(
+            status_code=404,
+            content={
+                "success": False,
+                "error": f"El proceso con PID {pid} ya no existe o se cerró previamente."
+            }
+        )
+    except psutil.AccessDenied:
+        return JSONResponse(
+            status_code=403,
+            content={
+                "success": False,
+                "error": f"Acceso denegado al intentar finalizar el proceso con PID {pid}. Ejecute el dashboard con permisos de Administrador."
+            }
+        )
+    except Exception as exc:
+        return JSONResponse(
+            status_code=500,
+            content={
+                "success": False,
+                "error": f"Error inesperado al terminar proceso: {str(exc)}"
+            }
+        )
 
 
 @app.websocket("/ws")
