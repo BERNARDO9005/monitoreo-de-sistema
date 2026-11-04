@@ -87,6 +87,92 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 # =====================================================================
+# RASTREADOR ASÍNCRONO DE PROCESOS DEL SISTEMA (TOP PROCESSES)
+# =====================================================================
+class ProcessTracker:
+    """
+    Rastrea procesos del sistema operativo en un hilo independiente para evitar
+    sobrecargar o bloquear el bucle de difusión WebSocket de 500 ms.
+    Mantiene referencias a psutil.Process para calcular deltas de CPU con precisión.
+    """
+
+    def __init__(self) -> None:
+        self.procs: Dict[int, psutil.Process] = {}
+        self.num_cores: int = psutil.cpu_count() or 1
+        self.total_ram: int = getattr(psutil.virtual_memory(), "total", 1) or 1
+        self.latest_data: Dict[str, Any] = {
+            "total_count": 0,
+            "top_cpu": [],
+            "top_memory": []
+        }
+        # Carga inicial síncrona
+        self._sync_update()
+
+    def _sync_update(self) -> None:
+        new_procs: Dict[int, psutil.Process] = {}
+        results: List[Dict[str, Any]] = []
+
+        try:
+            for p in psutil.process_iter(['pid', 'name', 'memory_info']):
+                try:
+                    pid = p.info['pid']
+                    if pid <= 0:
+                        continue
+
+                    proc_obj = self.procs.get(pid, p)
+                    raw_cpu = proc_obj.cpu_percent(interval=None)
+                    new_procs[pid] = proc_obj
+
+                    mem_info = p.info.get('memory_info')
+                    rss = mem_info.rss if mem_info else 0
+                    mem_mb = round(rss / (1024.0 * 1024.0), 1)
+                    mem_pct = round((rss / self.total_ram) * 100.0, 1)
+                    cpu_normalized = round(raw_cpu / self.num_cores, 1)
+
+                    results.append({
+                        "pid": pid,
+                        "name": p.info['name'] or f"Process {pid}",
+                        "cpu_percent": cpu_normalized,
+                        "memory_mb": mem_mb,
+                        "memory_percent": mem_pct
+                    })
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    continue
+
+            self.procs = new_procs
+
+            # Top 15 ordenados por CPU
+            top_cpu = sorted(results, key=lambda x: x["cpu_percent"], reverse=True)[:15]
+            # Top 15 ordenados por Memoria
+            top_memory = sorted(results, key=lambda x: x["memory_mb"], reverse=True)[:15]
+
+            self.latest_data = {
+                "total_count": len(results),
+                "top_cpu": top_cpu,
+                "top_memory": top_memory
+            }
+        except Exception as exc:
+            logger.debug("Error recolectando procesos: %s", exc)
+
+    async def update_loop(self) -> None:
+        """Ciclo asíncrono en segundo plano que actualiza la lista cada 1.5 segundos."""
+        logger.info("Iniciando bucle en segundo plano de rastreo de procesos (intervalo: 1.5s)")
+        while True:
+            try:
+                await asyncio.to_thread(self._sync_update)
+            except asyncio.CancelledError:
+                logger.info("Bucle de rastreo de procesos cancelado.")
+                break
+            except Exception as exc:
+                logger.error("Error en ciclo de procesos: %s", exc)
+
+            await asyncio.sleep(1.5)
+
+    def get_latest(self) -> Dict[str, Any]:
+        return self.latest_data
+
+
+# =====================================================================
 # COLECTOR DE MÉTRICAS NATIVAS DEL SISTEMA (LOW-LEVEL OS TELEMETRY)
 # =====================================================================
 class SystemMetricsCollector:
@@ -100,6 +186,7 @@ class SystemMetricsCollector:
         self.last_time: float = time.time()
         self.last_disk_io: Optional[Any] = None
         self.last_net_io: Optional[Dict[str, int]] = None
+        self.process_tracker = ProcessTracker()
 
         # Inicialización previa (priming) de psutil para evitar llamadas bloqueantes
         psutil.cpu_percent(interval=None)
