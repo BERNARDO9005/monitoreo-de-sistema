@@ -92,6 +92,29 @@ export function Dashboard() {
 
   const { status, data, error } = useWebSocket(wsUrl);
 
+  // Estado para el Administrador de Procesos
+  const [sortMode, setSortMode] = useState('cpu'); // 'cpu' | 'memory'
+  const [searchQuery, setSearchQuery] = useState('');
+  const [targetProcToKill, setTargetProcToKill] = useState(null);
+  const [isKilling, setIsKilling] = useState(false);
+  const [toast, setToast] = useState(null);
+
+  // Auto-cierre de alertas emergentes (Toast) tras 4 segundos
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(null), 4000);
+    return () => clearTimeout(timer);
+  }, [toast]);
+
+  // URL base para peticiones HTTP a la API REST de FastAPI
+  const apiBaseUrl = useMemo(() => {
+    if (typeof window === 'undefined') return 'http://localhost:8000';
+    const proto = window.location.protocol;
+    const host = window.location.hostname || 'localhost';
+    const port = window.location.port === '5173' ? '8000' : (window.location.port || (proto === 'https:' ? '443' : '80'));
+    return `${proto}//${host}:${port}`;
+  }, []);
+
   // Buffers fijos para gráficos históricos (estrictamente máximo 60 muestras / 30 segundos)
   const [cpuHistory, setCpuHistory] = useState([]);
   const [netHistory, setNetHistory] = useState([]);
