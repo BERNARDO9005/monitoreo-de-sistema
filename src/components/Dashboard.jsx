@@ -105,6 +105,60 @@ export function Dashboard() {
   const [isKilling, setIsKilling] = useState(false);
   const [toast, setToast] = useState(null);
 
+  // Estado para Modo Mini-Widget y Always-on-Top
+  const [windowMode, setWindowMode] = useState('normal'); // 'normal' | 'widget'
+  const [isOnTop, setIsOnTop] = useState(false);
+
+  // Sincronizar estado con telemetría del backend si cambia externamente (ej. desde menú de bandeja)
+  useEffect(() => {
+    if (data?.window) {
+      if (data.window.mode && data.window.mode !== windowMode) {
+        setWindowMode(data.window.mode);
+      }
+      if (data.window.on_top !== undefined) {
+        setIsOnTop(data.window.on_top);
+      }
+    }
+  }, [data?.window]);
+
+  // Manejadores de control de ventana nativa
+  const handleSetWindowMode = async (mode) => {
+    setWindowMode(mode);
+    try {
+      await fetch(`${apiBaseUrl}/api/window/mode`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode })
+      });
+    } catch (err) {
+      console.debug('Aviso: endpoint de ventana no respondió o corre en navegador web puro:', err);
+    }
+  };
+
+  const handleTogglePin = async () => {
+    const nextVal = !isOnTop;
+    setIsOnTop(nextVal);
+    try {
+      await fetch(`${apiBaseUrl}/api/window/pin`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ on_top: nextVal })
+      });
+    } catch (err) {
+      console.debug('Aviso: error toggling pin:', err);
+    }
+  };
+
+  const handleMinimizeToTray = async () => {
+    try {
+      await fetch(`${apiBaseUrl}/api/window/minimize`, {
+        method: 'POST'
+      });
+    } catch (err) {
+      console.debug('Aviso: error enviando a bandeja:', err);
+    }
+  };
+
   // Auto-cierre de alertas emergentes (Toast) tras 4 segundos
   useEffect(() => {
     if (!toast) return;
@@ -254,6 +308,18 @@ export function Dashboard() {
       setIsKilling(false);
     }
   };
+
+  if (windowMode === 'widget') {
+    return (
+      <MiniWidget
+        data={data}
+        isOnTop={isOnTop}
+        onTogglePin={handleTogglePin}
+        onExpand={() => handleSetWindowMode('normal')}
+        onMinimizeToTray={handleMinimizeToTray}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#0f172a] text-slate-100 p-4 md:p-6 lg:p-8 font-sans antialiased selection:bg-indigo-500 selection:text-white">
