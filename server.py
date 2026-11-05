@@ -834,7 +834,7 @@ EMBEDDED_HTML_DASHBOARD = """<!DOCTYPE html>
       </div>
       <p class="text-xs text-slate-400 mt-1">Telemetría nativa en tiempo real (500 ms) &bull; Modo No Bloqueante &bull; Dark Mode Nativo</p>
     </div>
-    <div class="flex items-center space-x-3 text-xs font-mono">
+    <div class="flex items-center space-x-2 text-xs font-mono">
       <div class="bg-slate-800/80 border border-slate-700/60 px-3 py-1.5 rounded-lg flex items-center space-x-2">
         <span class="text-slate-400">ESTADO:</span>
         <span id="socketStatusText" class="text-emerald-400 font-semibold">CONECTADO</span>
@@ -843,6 +843,8 @@ EMBEDDED_HTML_DASHBOARD = """<!DOCTYPE html>
         <span class="text-slate-400">MUESTRAS:</span>
         <span id="sampleCounter" class="text-indigo-400 font-semibold">0</span>
       </div>
+      <button onclick="togglePin()" id="btnPin" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-lg border border-slate-700 transition" title="Fijar siempre al frente">📌 Fijar</button>
+      <button onclick="minimizeToTray()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-lg border border-slate-700 transition" title="Minimizar a la bandeja">_ Bandeja</button>
     </div>
   </header>
 
