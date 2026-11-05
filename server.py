@@ -1227,6 +1227,35 @@ EMBEDDED_HTML_DASHBOARD = """<!DOCTYPE html>
       };
     }
 
+    let isAlwaysOnTop = false;
+    async function togglePin() {
+      isAlwaysOnTop = !isAlwaysOnTop;
+      try {
+        await fetch('/api/window/pin', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ on_top: isAlwaysOnTop })
+        });
+        const btn = document.getElementById('btnPin');
+        if (btn) {
+          btn.className = isAlwaysOnTop
+            ? 'bg-sky-600/30 text-sky-300 px-2.5 py-1.5 rounded-lg border border-sky-500 transition'
+            : 'bg-slate-800 hover:bg-slate-700 text-slate-300 px-2.5 py-1.5 rounded-lg border border-slate-700 transition';
+          btn.textContent = isAlwaysOnTop ? '📌 Fijado' : '📌 Fijar';
+        }
+      } catch (e) {
+        console.debug('Error fijando ventana:', e);
+      }
+    }
+
+    async function minimizeToTray() {
+      try {
+        await fetch('/api/window/minimize', { method: 'POST' });
+      } catch (e) {
+        console.debug('Error minimizando:', e);
+      }
+    }
+
     window.addEventListener('DOMContentLoaded', initWebSocket);
   </script>
 </body>
