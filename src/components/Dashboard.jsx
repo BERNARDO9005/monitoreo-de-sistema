@@ -372,7 +372,7 @@ export function Dashboard() {
           </div>
         </div>
 
-        {/* Indicadores de Conexión del Header */}
+        {/* Indicadores de Conexión del Header y Acciones de Escritorio */}
         <div className="flex flex-wrap items-center gap-2.5 text-xs font-mono">
           <div className="bg-[#1e293b] border border-slate-700/80 px-3 py-1.5 rounded-xl flex items-center space-x-2 shadow-sm">
             <div className={`w-2.5 h-2.5 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
@@ -394,6 +394,40 @@ export function Dashboard() {
             <Server className="w-3.5 h-3.5 text-slate-400" />
             <span className="text-slate-400">HISTORIAL:</span>
             <span className="text-slate-200 font-semibold">{cpuHistory.length} / 60</span>
+          </div>
+
+          {/* Botones de Control de Ventana y Bandeja */}
+          <div className="flex items-center gap-2 pl-2 border-l border-slate-800">
+            <button
+              onClick={handleTogglePin}
+              title={isOnTop ? "Desfijar de primer plano" : "Fijar siempre al frente (Always-on-top)"}
+              className={`px-3 py-1.5 rounded-xl border flex items-center gap-1.5 transition-all text-xs font-semibold shadow-sm ${
+                isOnTop
+                  ? "bg-sky-500/20 text-sky-300 border-sky-500/40 hover:bg-sky-500/30"
+                  : "bg-[#1e293b] border-slate-700/80 text-slate-300 hover:text-white hover:border-slate-600"
+              }`}
+            >
+              {isOnTop ? <Pin className="w-3.5 h-3.5 fill-current" /> : <PinOff className="w-3.5 h-3.5" />}
+              <span>{isOnTop ? "Fijado" : "Fijar"}</span>
+            </button>
+
+            <button
+              onClick={() => handleSetWindowMode('widget')}
+              title="Conmutar a modo Mini-Widget flotante compacto"
+              className="bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/40 px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition-all text-xs font-semibold shadow-sm"
+            >
+              <Minimize2 className="w-3.5 h-3.5" />
+              <span>Mini-Widget</span>
+            </button>
+
+            <button
+              onClick={handleMinimizeToTray}
+              title="Minimizar a la bandeja del sistema de Windows"
+              className="bg-[#1e293b] hover:bg-slate-700 border border-slate-700/80 text-slate-300 hover:text-white px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition-all text-xs font-semibold shadow-sm"
+            >
+              <Minus className="w-3.5 h-3.5" />
+              <span>Bandeja</span>
+            </button>
           </div>
         </div>
       </header>
