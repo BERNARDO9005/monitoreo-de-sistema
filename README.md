@@ -41,6 +41,12 @@ graph TD
 * **Agregación inteligente:** Suma el tráfico únicamente de interfaces de red físicas activas (`isup=True` y con IP asignada), excluyendo adaptadores loopback y virtuales desconectados.
 * **Estadísticas de paquetes:** Monitoreo dinámico del porcentaje de paquetes perdidos (*drop rate %*) y recuento de errores de transmisión/recepción.
 
+### 5. Administrador de Procesos del Sistema (Top Processes)
+* **Ranking Top 10 en Vivo:** Monitoreo continuo de los procesos con mayor impacto en el sistema, intercambiable entre **Top 10 CPU** y **Top 10 Memoria RAM**.
+* **Información Detallada:** Visualización en tiempo real de PID, Nombre, Usuario propietario (`SYSTEM`, usuario de dominio o local), % CPU con micro-gráfico de carga y Memoria RAM ocupada en MB con % del total del sistema.
+* **Buscador y Filtro Rápido:** Capacidad de búsqueda instantánea por nombre de ejecutable (ej. `chrome`, `node`, `python`), PID o usuario en todos los procesos activos del sistema operativo mediante endpoint `/api/processes?q=...`.
+* **Terminación Controlada y Segura (Kill Process):** Botón de cierre forzado con diálogo modal de confirmación, validación de procesos protegidos del kernel (PID <= 4) y notificaciones Toast flotantes de éxito o error.
+
 ---
 
 ## 🚨 Matriz de Umbrales y Alertas
