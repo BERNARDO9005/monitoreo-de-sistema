@@ -31,9 +31,14 @@ import {
   Terminal,
   Layers,
   User,
-  X
+  X,
+  Pin,
+  PinOff,
+  Minimize2,
+  Minus
 } from 'lucide-react';
 import { useWebSocket } from '../hooks/useWebSocket';
+import { MiniWidget } from './MiniWidget';
 
 /**
  * Función auxiliar para obtener las clases CSS de colores correspondientes a los umbrales
