@@ -1262,6 +1262,7 @@ def run_desktop_app(host: str = "127.0.0.1", port: int = 8000) -> None:
     """
     Ejecuta el servidor FastAPI en segundo plano y abre una ventana nativa
     de escritorio en Windows mediante pywebview (motor Edge WebView2).
+    Soporta minimizado a la bandeja del sistema (System Tray) y Always-on-top.
     """
     import threading
     import urllib.request
@@ -1271,14 +1272,17 @@ def run_desktop_app(host: str = "127.0.0.1", port: int = 8000) -> None:
         import webview
     except ImportError:
         logger.warning("pywebview no está disponible. Ejecutando únicamente en modo servidor web...")
-        uvicorn.run("server:app", host=host, port=port, reload=False, access_log=False)
+        uvicorn.run(app, host=host, port=port, reload=False, access_log=False)
         return
 
-    # Iniciar Uvicorn en un hilo daemon
-    config = uvicorn.Config("server:app", host=host, port=port, reload=False, access_log=False, log_level="warning")
+    # Iniciar Uvicorn en un hilo daemon pasando directamente la instancia app
+    config = uvicorn.Config(app, host=host, port=port, reload=False, access_log=False, log_level="warning")
     server = uvicorn.Server(config)
     server_thread = threading.Thread(target=server.run, daemon=True)
     server_thread.start()
+
+    # Inicializar bandeja del sistema con icono interactivo
+    window_controller.setup_tray()
 
     logger.info("Esperando inicio del servidor de telemetría...")
     health_url = f"http://{host}:{port}/health"
@@ -1299,34 +1303,51 @@ def run_desktop_app(host: str = "127.0.0.1", port: int = 8000) -> None:
     logger.info("Abriendo ventana nativa de escritorio en %s", app_url)
 
     # Crear ventana nativa de Windows con tamaño ergonómico y estilo Dark Mode
+    # min_size=(320, 220) permite conmutar al modo Mini-Widget (360x270)
     window = webview.create_window(
         title="Dashboard de Monitoreo de Sistema Operativo Nativo v2.0",
         url=app_url,
         width=1280,
         height=850,
-        min_size=(960, 600),
+        min_size=(320, 220),
         background_color="#0f172a"
     )
 
+    # Vincular ventana al controlador de escritorio
+    window_controller.set_window(window, server)
+
+    # Interceptar evento de cierre para enviar a la bandeja en lugar de matar la app
+    def on_closing():
+        if window_controller.minimize_to_tray_on_close:
+            window_controller.hide_to_tray()
+            return False
+        return True
+
     def on_closed():
         logger.info("Ventana cerrada por el usuario. Deteniendo servidor...")
-        server.should_exit = True
+        window_controller.quit_application()
 
+    window.events.closing += on_closing
     window.events.closed += on_closed
 
     try:
-        webview.start()
+        icon_arg = str(APP_ICON_PATH) if APP_ICON_PATH.is_file() else None
+        webview.start(icon=icon_arg)
     except Exception as exc:
         logger.error("Error al iniciar ventana con pywebview: %s", exc)
     finally:
-        server.should_exit = True
+        window_controller.quit_application()
         server_thread.join(timeout=2.0)
         logger.info("Aplicación nativa finalizada correctamente.")
 
 
 if __name__ == "__main__":
     import argparse
+    import multiprocessing
     import uvicorn
+
+    # Necesario para congelar ejecutables con PyInstaller en Windows
+    multiprocessing.freeze_support()
 
     parser = argparse.ArgumentParser(description="Dashboard de Monitoreo de Sistema Operativo Nativo v2.0")
     parser.add_argument("--server-only", "--headless", action="store_true", help="Iniciar solo el servidor web sin ventana de escritorio nativa")
@@ -1336,6 +1357,6 @@ if __name__ == "__main__":
 
     if args.server_only:
         logger.info("Iniciando servidor Uvicorn (modo headless) en http://%s:%d", args.host, args.port)
-        uvicorn.run("server:app", host=args.host, port=args.port, reload=False, access_log=False)
+        uvicorn.run(app, host=args.host, port=args.port, reload=False, access_log=False)
     else:
         run_desktop_app(host=args.host, port=args.port)
