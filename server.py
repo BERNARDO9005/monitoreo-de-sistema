@@ -100,6 +100,7 @@ class ProcessTracker:
         self.procs: Dict[int, psutil.Process] = {}
         self.num_cores: int = psutil.cpu_count() or 1
         self.total_ram: int = getattr(psutil.virtual_memory(), "total", 1) or 1
+        self.all_processes: List[Dict[str, Any]] = []
         self.latest_data: Dict[str, Any] = {
             "total_count": 0,
             "top_cpu": [],
@@ -113,7 +114,7 @@ class ProcessTracker:
         results: List[Dict[str, Any]] = []
 
         try:
-            for p in psutil.process_iter(['pid', 'name', 'memory_info']):
+            for p in psutil.process_iter(['pid', 'name', 'memory_info', 'username']):
                 try:
                     pid = p.info['pid']
                     if pid <= 0:
@@ -129,9 +130,17 @@ class ProcessTracker:
                     mem_pct = round((rss / self.total_ram) * 100.0, 1)
                     cpu_normalized = round(raw_cpu / self.num_cores, 1)
 
+                    raw_user = p.info.get('username')
+                    if raw_user:
+                        user_display = raw_user.split('\\')[-1] if '\\' in raw_user else raw_user
+                    else:
+                        user_display = "SYSTEM" if pid <= 4 else "N/A"
+
                     results.append({
                         "pid": pid,
                         "name": p.info['name'] or f"Process {pid}",
+                        "username": user_display,
+                        "raw_username": raw_user or user_display,
                         "cpu_percent": cpu_normalized,
                         "memory_mb": mem_mb,
                         "memory_percent": mem_pct
@@ -140,11 +149,12 @@ class ProcessTracker:
                     continue
 
             self.procs = new_procs
+            self.all_processes = results
 
-            # Top 15 ordenados por CPU
-            top_cpu = sorted(results, key=lambda x: x["cpu_percent"], reverse=True)[:15]
-            # Top 15 ordenados por Memoria
-            top_memory = sorted(results, key=lambda x: x["memory_mb"], reverse=True)[:15]
+            # Top 10 ordenados por CPU
+            top_cpu = sorted(results, key=lambda x: x["cpu_percent"], reverse=True)[:10]
+            # Top 10 ordenados por Memoria
+            top_memory = sorted(results, key=lambda x: x["memory_mb"], reverse=True)[:10]
 
             self.latest_data = {
                 "total_count": len(results),
@@ -170,6 +180,9 @@ class ProcessTracker:
 
     def get_latest(self) -> Dict[str, Any]:
         return self.latest_data
+
+    def get_all(self) -> List[Dict[str, Any]]:
+        return self.all_processes
 
 
 # =====================================================================
@@ -599,8 +612,26 @@ async def get_current_metrics() -> JSONResponse:
 
 
 @app.get("/api/processes")
-async def get_processes_snapshot() -> JSONResponse:
-    """Devuelve una instantánea de los procesos activos del sistema."""
+async def get_processes_snapshot(q: Optional[str] = None) -> JSONResponse:
+    """
+    Devuelve una instantánea de los procesos activos del sistema o busca
+    por nombre, PID o usuario en todos los procesos en ejecución.
+    """
+    if q and q.strip():
+        term = q.lower().strip()
+        all_procs = collector.process_tracker.get_all()
+        matched = [
+            p for p in all_procs
+            if term in p["name"].lower()
+            or term in str(p["pid"])
+            or term in (p.get("username") or "").lower()
+            or term in (p.get("raw_username") or "").lower()
+        ]
+        return JSONResponse({
+            "total_count": len(all_procs),
+            "matched_count": len(matched),
+            "processes": matched[:30]
+        })
     return JSONResponse(collector.process_tracker.get_latest())
 
 
