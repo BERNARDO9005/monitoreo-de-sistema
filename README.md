@@ -14,7 +14,11 @@ graph TD
     D --> E["FastAPI WebSocket Server (/ws)"]
     E -->|"Broadcast concurrente (500 ms)"| F["Clientes Conectados (Set de WebSockets)"]
     F --> G["React Frontend (Vite + Tailwind CSS + Recharts)"]
-    F --> H["Dashboard Embebido Nativo (http://localhost:8000)"]
+    F --> H["Mini-Widget HUD (360x270 Always-on-top)"]
+    F --> I["Dashboard Embebido Nativo (http://localhost:8000)"]
+    C --> J["desktop_manager.py"]
+    J --> K["System Tray (pystray con telemetría en vivo)"]
+    J --> L["Ventana Nativa Edge WebView2 (pywebview)"]
 ```
 
 ---

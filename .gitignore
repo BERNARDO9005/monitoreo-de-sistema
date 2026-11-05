@@ -1,0 +1,9 @@
+node_modules/
+dist-exe/
+build-exe/
+__pycache__/
+*.pyc
+venv/
+.vscode/
+.idea/
+*.log
