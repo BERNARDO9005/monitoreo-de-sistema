@@ -715,6 +715,54 @@ async def kill_process(pid: int) -> JSONResponse:
         )
 
 
+# =====================================================================
+# ENDPOINTS DE CONTROL DE VENTANA NATIVA Y BANDEJA (SYSTEM TRAY / WIDGET)
+# =====================================================================
+@app.get("/api/window/status")
+async def get_window_status() -> JSONResponse:
+    """Devuelve el estado de la ventana de escritorio, modo actual y fijado."""
+    return JSONResponse({
+        "is_desktop": window_controller.is_desktop,
+        "mode": window_controller.mode,
+        "on_top": window_controller.on_top,
+        "tray_enabled": window_controller.tray_icon is not None
+    })
+
+
+@app.post("/api/window/mode")
+async def set_window_mode(payload: Dict[str, Any]) -> JSONResponse:
+    """Conmuta la ventana entre 'normal' (dashboard completo) y 'widget' (mini-widget flotante)."""
+    mode = str(payload.get("mode", "normal"))
+    window_controller.set_mode(mode)
+    return JSONResponse({
+        "success": True,
+        "mode": window_controller.mode,
+        "on_top": window_controller.on_top,
+        "is_desktop": window_controller.is_desktop
+    })
+
+
+@app.post("/api/window/pin")
+async def set_window_pin(payload: Dict[str, Any]) -> JSONResponse:
+    """Configura si la ventana debe permanecer siempre visible al frente (Always-on-top)."""
+    on_top = bool(payload.get("on_top", False))
+    window_controller.set_on_top(on_top)
+    return JSONResponse({
+        "success": True,
+        "on_top": window_controller.on_top
+    })
+
+
+@app.post("/api/window/minimize")
+async def minimize_window_to_tray() -> JSONResponse:
+    """Minimiza la ventana enviándola a la bandeja del sistema."""
+    window_controller.hide_to_tray()
+    return JSONResponse({
+        "success": True,
+        "message": "Ventana minimizada a la bandeja del sistema."
+    })
+
+
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket) -> None:
     """Canal WebSocket bidireccional para transmisión continua de métricas cada 500 ms."""
