@@ -224,6 +224,46 @@
           "description": "Lista consolidada de interfaces de red físicas activas medidas."
         }
       }
+    },
+    "processes": {
+      "type": "object",
+      "required": ["total_count", "top_cpu", "top_memory"],
+      "properties": {
+        "total_count": {
+          "type": "integer",
+          "description": "Número total de procesos activos en ejecución en el sistema operativo."
+        },
+        "top_cpu": {
+          "type": "array",
+          "description": "Ranking de los procesos con mayor uso de procesador (Top 10 CPU).",
+          "items": {
+            "type": "object",
+            "properties": {
+              "pid": { "type": "integer" },
+              "name": { "type": "string" },
+              "username": { "type": "string" },
+              "cpu_percent": { "type": "number" },
+              "memory_mb": { "type": "number" },
+              "memory_percent": { "type": "number" }
+            }
+          }
+        },
+        "top_memory": {
+          "type": "array",
+          "description": "Ranking de los procesos con mayor ocupación de RAM (Top 10 Memoria).",
+          "items": {
+            "type": "object",
+            "properties": {
+              "pid": { "type": "integer" },
+              "name": { "type": "string" },
+              "username": { "type": "string" },
+              "cpu_percent": { "type": "number" },
+              "memory_mb": { "type": "number" },
+              "memory_percent": { "type": "number" }
+            }
+          }
+        }
+      }
     }
   },
   "example": {
