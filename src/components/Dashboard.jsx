@@ -30,6 +30,7 @@ import {
   AlertOctagon,
   Terminal,
   Layers,
+  User,
   X
 } from 'lucide-react';
 import { useWebSocket } from '../hooks/useWebSocket';
@@ -169,13 +170,51 @@ export function Dashboard() {
   const processes = data?.processes || { total_count: 0, top_cpu: [], top_memory: [] };
   const currentProcessList = sortMode === 'cpu' ? (processes.top_cpu || []) : (processes.top_memory || []);
 
-  const filteredProcesses = useMemo(() => {
-    if (!searchQuery.trim()) return currentProcessList;
+  const [serverSearchResults, setServerSearchResults] = useState(null);
+  const [isSearching, setIsSearching] = useState(false);
+
+  // Búsqueda en segundo plano que abarca todo el sistema operativo si se escribe un término
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setServerSearchResults(null);
+      setIsSearching(false);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setIsSearching(true);
+      try {
+        const res = await fetch(`${apiBaseUrl}/api/processes?q=${encodeURIComponent(searchQuery.trim())}`);
+        if (res.ok) {
+          const json = await res.json();
+          setServerSearchResults(json.processes || []);
+        }
+      } catch (err) {
+        console.error("Error buscando procesos:", err);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery, apiBaseUrl]);
+
+  // Selección de lista activa: Top 10 en vivo o resultados de búsqueda
+  const displayProcesses = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return currentProcessList.slice(0, 10);
+    }
+    if (serverSearchResults !== null) {
+      return serverSearchResults;
+    }
     const query = searchQuery.toLowerCase().trim();
     return currentProcessList.filter(
-      (p) => p.name.toLowerCase().includes(query) || String(p.pid).includes(query)
+      (p) =>
+        p.name.toLowerCase().includes(query) ||
+        String(p.pid).includes(query) ||
+        (p.username && p.username.toLowerCase().includes(query))
     );
-  }, [currentProcessList, searchQuery]);
+  }, [searchQuery, serverSearchResults, currentProcessList]);
 
   const confirmKillProcess = async () => {
     if (!targetProcToKill) return;
@@ -191,6 +230,13 @@ export function Dashboard() {
           message: result.message || `Proceso '${targetProcToKill.name}' finalizado correctamente.`
         });
         setTargetProcToKill(null);
+        if (searchQuery.trim()) {
+          const res = await fetch(`${apiBaseUrl}/api/processes?q=${encodeURIComponent(searchQuery.trim())}`);
+          if (res.ok) {
+            const json = await res.json();
+            setServerSearchResults(json.processes || []);
+          }
+        }
       } else {
         setToast({
           type: 'error',
@@ -854,7 +900,7 @@ export function Dashboard() {
       {data && (
         <section className="mt-8 bg-[#1e293b] border border-slate-700/70 rounded-3xl p-6 shadow-xl relative overflow-hidden">
           {/* Header de la sección */}
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6 pb-5 border-b border-slate-800">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6 pb-5 border-b border-slate-800">
             <div className="flex items-center space-x-3">
               <div className="p-2.5 rounded-xl bg-violet-500/10 border border-violet-500/20 text-violet-400">
                 <Terminal className="w-5 h-5" />
@@ -869,59 +915,95 @@ export function Dashboard() {
                   </span>
                 </div>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  Telemetría de programas en ejecución con opción de finalización segura de procesos
+                  Telemetría en tiempo real con ranking Top 10 CPU / RAM, buscador y terminación segura
                 </p>
               </div>
             </div>
 
             {/* Controles: Ordenamiento y Búsqueda */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-              {/* Selector de ordenamiento */}
+              {/* Selector de ordenamiento Top 10 */}
               <div className="bg-slate-900/90 border border-slate-800 p-1 rounded-2xl flex items-center">
                 <button
-                  onClick={() => setSortMode('cpu')}
+                  onClick={() => {
+                    setSortMode('cpu');
+                    setSearchQuery('');
+                  }}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
-                    sortMode === 'cpu'
+                    sortMode === 'cpu' && !searchQuery
                       ? 'bg-indigo-600 text-white shadow-md'
                       : 'text-slate-400 hover:text-slate-200'
                   }`}
                 >
                   <Flame className="w-3.5 h-3.5 text-amber-400" />
-                  Top CPU
+                  Top 10 CPU
                 </button>
                 <button
-                  onClick={() => setSortMode('memory')}
+                  onClick={() => {
+                    setSortMode('memory');
+                    setSearchQuery('');
+                  }}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
-                    sortMode === 'memory'
+                    sortMode === 'memory' && !searchQuery
                       ? 'bg-indigo-600 text-white shadow-md'
                       : 'text-slate-400 hover:text-slate-200'
                   }`}
                 >
                   <Zap className="w-3.5 h-3.5 text-emerald-400" />
-                  Top Memoria RAM
+                  Top 10 Memoria RAM
                 </button>
               </div>
 
               {/* Barra de búsqueda interactiva */}
-              <div className="relative">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                <input
-                  type="text"
-                  placeholder="Buscar proceso o PID..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full sm:w-56 bg-slate-900/90 border border-slate-800 text-xs text-slate-100 placeholder-slate-500 rounded-2xl pl-9 pr-8 py-2 focus:outline-none focus:border-indigo-500 transition-colors"
-                />
-                {searchQuery && (
-                  <button
-                    onClick={() => setSearchQuery('')}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                )}
+              <div className="flex flex-col">
+                <div className="relative">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="text"
+                    placeholder="Buscar (ej. chrome, node, python)..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full sm:w-64 bg-slate-900/90 border border-slate-800 text-xs text-slate-100 placeholder-slate-500 rounded-2xl pl-9 pr-8 py-2 focus:outline-none focus:border-indigo-500 transition-colors"
+                  />
+                  {isSearching ? (
+                    <div className="w-3 h-3 border-2 border-indigo-400/40 border-t-indigo-400 rounded-full animate-spin absolute right-3 top-1/2 -translate-y-1/2" />
+                  ) : searchQuery ? (
+                    <button
+                      onClick={() => setSearchQuery('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  ) : null}
+                </div>
               </div>
             </div>
+          </div>
+
+          {/* Filtros rápidos / Tags */}
+          <div className="flex items-center gap-2 mb-4 flex-wrap text-xs">
+            <span className="text-[11px] text-slate-400 font-medium">Filtro rápido:</span>
+            {['chrome', 'node', 'python', 'code', 'explorer'].map((tag) => (
+              <button
+                key={tag}
+                onClick={() => setSearchQuery(searchQuery.toLowerCase() === tag ? '' : tag)}
+                className={`px-2.5 py-1 rounded-xl text-[11px] font-mono transition-all ${
+                  searchQuery.toLowerCase() === tag
+                    ? 'bg-indigo-600 text-white font-semibold shadow-sm'
+                    : 'bg-slate-900/80 border border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700'
+                }`}
+              >
+                {tag}
+              </button>
+            ))}
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="text-[11px] text-indigo-400 hover:text-indigo-300 ml-1 underline transition-colors"
+              >
+                Restablecer vista Top 10
+              </button>
+            )}
           </div>
 
           {/* Tabla de Procesos */}
@@ -931,14 +1013,15 @@ export function Dashboard() {
                 <tr className="text-[11px] font-mono text-slate-400 uppercase border-b border-slate-800/80">
                   <th className="pb-3 pl-3 font-semibold">Proceso / Aplicación</th>
                   <th className="pb-3 px-3 font-semibold">PID</th>
+                  <th className="pb-3 px-3 font-semibold">Usuario</th>
                   <th className="pb-3 px-3 font-semibold">Uso CPU</th>
                   <th className="pb-3 px-3 font-semibold">Memoria RAM</th>
                   <th className="pb-3 pr-3 text-right font-semibold">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
-                {filteredProcesses.length > 0 ? (
-                  filteredProcesses.map((proc) => {
+                {displayProcesses.length > 0 ? (
+                  displayProcesses.map((proc) => {
                     const cpuPercent = proc.cpu_percent ?? 0;
                     const isHighCpu = cpuPercent >= 30;
                     const isMedCpu = cpuPercent >= 10;
@@ -953,6 +1036,8 @@ export function Dashboard() {
                       ? 'bg-amber-400'
                       : 'bg-indigo-500';
 
+                    const isProtected = proc.pid <= 4;
+
                     return (
                       <tr
                         key={proc.pid}
@@ -964,7 +1049,7 @@ export function Dashboard() {
                             <div className="w-7 h-7 rounded-lg bg-slate-800 border border-slate-700/60 flex items-center justify-center text-slate-300 shrink-0">
                               <Layers className="w-3.5 h-3.5 text-indigo-400" />
                             </div>
-                            <span className="font-semibold text-slate-200 text-sm group-hover:text-white transition-colors truncate max-w-[200px] sm:max-w-xs block">
+                            <span className="font-semibold text-slate-200 text-sm group-hover:text-white transition-colors truncate max-w-[180px] sm:max-w-xs block">
                               {proc.name}
                             </span>
                           </div>
@@ -977,6 +1062,19 @@ export function Dashboard() {
                           </span>
                         </td>
 
+                        {/* Usuario */}
+                        <td className="py-3 px-3">
+                          <div className="flex items-center space-x-1.5">
+                            <User className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                            <span
+                              className="font-mono text-xs text-slate-300 truncate max-w-[110px]"
+                              title={proc.raw_username || proc.username}
+                            >
+                              {proc.username || 'SYSTEM'}
+                            </span>
+                          </div>
+                        </td>
+
                         {/* CPU */}
                         <td className="py-3 px-3">
                           <div className="space-y-1">
@@ -985,7 +1083,7 @@ export function Dashboard() {
                                 {cpuPercent}%
                               </span>
                             </div>
-                            <div className="w-24 sm:w-32 bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                            <div className="w-20 sm:w-28 bg-slate-800 rounded-full h-1.5 overflow-hidden">
                               <div
                                 className={`h-full ${cpuBarColor} transition-all duration-300`}
                                 style={{ width: `${Math.min(100, Math.max(0, cpuPercent * 2))}%` }}
@@ -1005,7 +1103,7 @@ export function Dashboard() {
                                 ({proc.memory_percent}%)
                               </span>
                             </div>
-                            <div className="w-24 sm:w-32 bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                            <div className="w-20 sm:w-28 bg-slate-800 rounded-full h-1.5 overflow-hidden">
                               <div
                                 className="h-full bg-emerald-500 transition-all duration-300"
                                 style={{ width: `${Math.min(100, Math.max(0, proc.memory_percent * 4))}%` }}
@@ -1018,8 +1116,13 @@ export function Dashboard() {
                         <td className="py-3 pr-3 text-right">
                           <button
                             onClick={() => setTargetProcToKill(proc)}
-                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-semibold text-slate-400 hover:text-rose-300 bg-slate-900/80 hover:bg-rose-500/15 border border-slate-800 hover:border-rose-500/40 transition-all"
-                            title="Finalizar proceso"
+                            disabled={isProtected}
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-semibold transition-all ${
+                              isProtected
+                                ? 'opacity-35 cursor-not-allowed text-slate-600 bg-slate-900 border border-slate-800'
+                                : 'text-slate-400 hover:text-rose-300 bg-slate-900/80 hover:bg-rose-500/15 border border-slate-800 hover:border-rose-500/40'
+                            }`}
+                            title={isProtected ? 'Proceso protegido del sistema' : 'Finalizar proceso'}
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                             <span className="hidden sm:inline">Finalizar</span>
@@ -1030,7 +1133,7 @@ export function Dashboard() {
                   })
                 ) : (
                   <tr>
-                    <td colSpan="5" className="py-8 text-center text-slate-400">
+                    <td colSpan="6" className="py-8 text-center text-slate-400">
                       <div className="flex flex-col items-center justify-center space-y-2">
                         <Search className="w-8 h-8 text-slate-600" />
                         <p className="text-sm font-medium">
@@ -1040,7 +1143,7 @@ export function Dashboard() {
                           onClick={() => setSearchQuery('')}
                           className="text-xs text-indigo-400 hover:underline"
                         >
-                          Limpiar filtro
+                          Restablecer a Top 10
                         </button>
                       </div>
                     </td>
@@ -1052,10 +1155,14 @@ export function Dashboard() {
 
           <div className="mt-4 pt-3 border-t border-slate-800/80 text-[11px] text-slate-400 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
             <span>
-              Mostrando los procesos de mayor impacto actualizados periódicamente en segundo plano.
+              {searchQuery ? (
+                <>Resultados de búsqueda: <b className="text-white font-mono">{displayProcesses.length}</b> procesos encontrados para "{searchQuery}"</>
+              ) : (
+                <>Mostrando ranking <b className="text-white font-mono">Top 10</b> ordenado por <span className="text-indigo-300 font-semibold">{sortMode === 'cpu' ? 'Carga de CPU' : 'Memoria RAM'}</span>.</>
+              )}
             </span>
             <span className="text-slate-500 font-mono">
-              Ciclo de proceso: 1.5s &bull; API de control: /api/processes
+              Ciclo de telemetría: 1.5s &bull; API de control: /api/processes
             </span>
           </div>
         </section>
@@ -1081,6 +1188,10 @@ export function Dashboard() {
 
             <div className="bg-slate-900/80 p-3.5 rounded-2xl border border-slate-800 text-xs text-slate-400 space-y-1.5">
               <div className="flex justify-between">
+                <span>Usuario:</span>
+                <span className="font-mono font-bold text-slate-200">{targetProcToKill.username || 'SYSTEM'}</span>
+              </div>
+              <div className="flex justify-between">
                 <span>Carga de CPU:</span>
                 <span className="font-mono font-bold text-slate-200">{targetProcToKill.cpu_percent}%</span>
               </div>
@@ -1088,10 +1199,17 @@ export function Dashboard() {
                 <span>Memoria RAM ocupada:</span>
                 <span className="font-mono font-bold text-slate-200">{targetProcToKill.memory_mb} MB ({targetProcToKill.memory_percent}%)</span>
               </div>
-              <div className="text-[11px] text-amber-400/90 pt-2 border-t border-slate-800 flex items-center gap-1.5">
-                <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                <span>Los datos no guardados por esta aplicación se perderán.</span>
-              </div>
+              {targetProcToKill.pid <= 4 ? (
+                <div className="text-[11px] text-rose-400 pt-2 border-t border-slate-800 flex items-center gap-1.5 font-semibold">
+                  <AlertOctagon className="w-3.5 h-3.5 shrink-0" />
+                  <span>Proceso del núcleo del sistema protegido. No puede ser finalizado.</span>
+                </div>
+              ) : (
+                <div className="text-[11px] text-amber-400/90 pt-2 border-t border-slate-800 flex items-center gap-1.5">
+                  <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                  <span>Los datos no guardados por esta aplicación se perderán inmediatamente.</span>
+                </div>
+              )}
             </div>
 
             <div className="flex justify-end gap-3 pt-2">
@@ -1104,8 +1222,8 @@ export function Dashboard() {
               </button>
               <button
                 onClick={confirmKillProcess}
-                disabled={isKilling}
-                className="px-4 py-2 rounded-xl text-xs font-semibold text-white bg-rose-600 hover:bg-rose-500 disabled:opacity-50 transition flex items-center gap-1.5 shadow-lg shadow-rose-600/30"
+                disabled={isKilling || targetProcToKill.pid <= 4}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-white bg-rose-600 hover:bg-rose-500 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center gap-1.5 shadow-lg shadow-rose-600/30"
               >
                 {isKilling ? (
                   <>
