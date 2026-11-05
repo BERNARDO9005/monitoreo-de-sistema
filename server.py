@@ -10,6 +10,7 @@ import asyncio
 import json
 import logging
 import socket
+import sys
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -21,8 +22,14 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 import psutil
 
+from desktop_manager import window_controller, APP_ICON_PATH
+
 # Rutas estáticas para distribución compilada (React/Vite)
-BASE_DIR = Path(__file__).resolve().parent
+if getattr(sys, "frozen", False):
+    BASE_DIR = Path(sys._MEIPASS)
+else:
+    BASE_DIR = Path(__file__).resolve().parent
+
 DIST_DIR = BASE_DIR / "dist"
 DIST_INDEX = DIST_DIR / "index.html"
 DIST_ASSETS = DIST_DIR / "assets"
