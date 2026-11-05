@@ -322,6 +322,29 @@
         "Ethernet",
         "Wi-Fi 2"
       ]
+    },
+    "processes": {
+      "total_count": 214,
+      "top_cpu": [
+        {
+          "pid": 3842,
+          "name": "chrome.exe",
+          "username": "Usuario",
+          "cpu_percent": 18.5,
+          "memory_mb": 420.3,
+          "memory_percent": 2.6
+        }
+      ],
+      "top_memory": [
+        {
+          "pid": 5120,
+          "name": "Code.exe",
+          "username": "Usuario",
+          "cpu_percent": 4.1,
+          "memory_mb": 850.0,
+          "memory_percent": 5.3
+        }
+      ]
     }
   }
 }
