@@ -536,7 +536,12 @@ class SystemMetricsCollector:
             "swap": swap,
             "storage": storage,
             "network": network,
-            "processes": processes
+            "processes": processes,
+            "window": {
+                "mode": window_controller.mode,
+                "on_top": window_controller.on_top,
+                "is_desktop": window_controller.is_desktop
+            }
         }
 
 
@@ -554,6 +559,13 @@ async def telemetry_broadcast_loop() -> None:
             metrics = collector.collect()
             payload = json.dumps(metrics)
             await manager.broadcast(payload)
+
+            # Actualizar icono y tooltip de la bandeja del sistema de Windows
+            if window_controller.tray_icon:
+                cpu_pct = metrics["cpu"].get("usage_percent", 0.0)
+                ram_pct = metrics["ram"].get("percent", 0.0)
+                down_mb = metrics["network"].get("download_mb_s", 0.0)
+                window_controller.update_tray(cpu_pct, ram_pct, down_mb)
         except asyncio.CancelledError:
             logger.info("Bucle de telemetría cancelado.")
             break
