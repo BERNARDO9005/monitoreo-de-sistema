@@ -47,6 +47,20 @@ graph TD
 * **Buscador y Filtro Rápido:** Capacidad de búsqueda instantánea por nombre de ejecutable (ej. `chrome`, `node`, `python`), PID o usuario en todos los procesos activos del sistema operativo mediante endpoint `/api/processes?q=...`.
 * **Terminación Controlada y Segura (Kill Process):** Botón de cierre forzado con diálogo modal de confirmación, validación de procesos protegidos del kernel (PID <= 4) y notificaciones Toast flotantes de éxito o error.
 
+### 6. Experiencia de Escritorio y Distribución Nativa (v2.1)
+* **Bandeja del Sistema (System Tray con pystray):**
+  * Al cerrar o minimizar la ventana, la aplicación se oculta elegantemente en el área de notificación junto al reloj de Windows.
+  * **Icono dinámico de telemetría:** El icono de la bandeja actualiza su indicador circular en tiempo real con colores de salud (Verde/Ámbar/Rojo) y expone en su tooltip la carga de CPU, RAM y Red.
+  * **Menú contextual rápido:** Opciones con clic derecho para Abrir Dashboard, Conmutar Modo Mini-Widget, Modo Completo, Alternar Siempre Visible (Always-on-top) y Salir totalmente.
+* **Modo Mini-Widget Flotante ("Always-on-top"):**
+  * Vista HUD compacta de **360x270 px** diseñada para flotar fijada sobre juegos, editores de código (VS Code) o terminales.
+  * Muestra micro-tarjetas con CPU (uso % y GHz), RAM (uso % y GB), Disco I/O y Red (bajada/subida en vivo), junto con el proceso de mayor consumo en ejecución.
+  * Botones integrados para alternar *Always-on-top* (fijado), restaurar a pantalla completa o minimizar a la bandeja.
+* **Compilación en Ejecutable Único (.exe Portable):**
+  * Empaquetado optimizado mediante **PyInstaller** (`SystemMonitor.spec`) que genera un archivo ejecutable autónomo `dist-exe/SystemMonitor.exe`.
+  * No requiere que el usuario final tenga instalados Python ni Node.js.
+  * Incluye automáticamente el frontend React compilado, el servidor FastAPI, el motor WebView2, los iconos nativos de alta definición y el gestor de bandeja.
+
 ---
 
 ## 🚨 Matriz de Umbrales y Alertas
@@ -128,7 +142,27 @@ npm run build
 * `GET /embedded`: Dashboard ligero embebido standalone (HTML5 puro sin dependencias).
 * `GET /health`: Comprobación de estado y conteo de clientes activos.
 * `GET /metrics/current`: Instantánea REST de todas las métricas en JSON.
-* `WS /ws`: Canal WebSocket bidireccional con difusión periódica de 500 ms.
+* `GET /api/processes?q=...`: Búsqueda instantánea en todos los procesos activos del SO.
+* `POST /api/processes/{pid}/kill`: Finalización segura y controlada de un proceso (con protección de kernel).
+* `GET /api/window/status`: Estado de la ventana nativa (modo actual, Always-on-top, soporte de bandeja).
+* `POST /api/window/mode`: Conmuta dinámicamente entre modo `normal` y `widget` (Mini-Widget flotante).
+* `POST /api/window/pin`: Activa o desactiva la fijación permanente al frente (*Always-on-top*).
+* `POST /api/window/minimize`: Oculta la ventana y la envía al área de notificación de Windows (System Tray).
+* `WS /ws`: Canal WebSocket bidireccional con difusión periódica de 500 ms y control de ventana.
+
+---
+
+## 📦 Compilación a Ejecutable Standalone (.exe Portable)
+
+Para distribuir la aplicación a cualquier usuario de Windows sin necesidad de que instale Python, Node.js ni dependencias:
+
+1. **Vía Doble Clic:**
+   * Haz doble clic sobre [compilar_exe.bat](file:///C:/proyecto1/compilar_exe.bat).
+2. **Vía Terminal:**
+   ```powershell
+   python build_exe.py
+   ```
+El binario resultante se generará en **`dist-exe\SystemMonitor.exe`** (~40 MB), listo para ser copiado o transportado en una memoria USB.
 
 ---
 
